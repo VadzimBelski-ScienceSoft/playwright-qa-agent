@@ -10,7 +10,7 @@ import pytest
 
 from src.models.requirement import Requirement
 from src.models.requirements_document import RequirementsDocument
-from src.models.test_session import VALID_BROWSER_TYPES, VALID_STATUSES, TestSession
+from src.models.test_session import VALID_BROWSER_TYPES, TestSession
 from src.models.test_step import TestStep
 from src.models.verification_result import VerificationResult
 
