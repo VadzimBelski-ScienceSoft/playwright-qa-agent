@@ -31,7 +31,19 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Verify compliance with constitution v1.0.0 principles:
+
+- [ ] **Simplicity First**: Is this the minimum code solution? Can it be simpler?
+- [ ] **Cross-Platform**: Does this work on Linux, macOS, and Windows?
+- [ ] **UV + Python Stack**: Uses only UV and Python 3.11+, no additional tooling?
+- [ ] **Maintainability**: Can a new contributor understand this in 60 seconds?
+- [ ] **Usability**: Does this maintain zero-config defaults and intuitive CLI?
+
+**Complexity Justification** (required if any gate fails):
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| [e.g., Platform-specific code] | [specific requirement] | [why cross-platform approach insufficient] |
 
 ## Project Structure
 
