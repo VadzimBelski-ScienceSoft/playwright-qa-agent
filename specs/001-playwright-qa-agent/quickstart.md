@@ -95,34 +95,37 @@ The agent will:
 Output:
 ```
 Playwright QA Agent v1.0.0
-===========================
+========================================
 
 Loading requirements from: requirements.md
 Found 3 requirements
 
 Testing against: https://your-app.com
-Browser: Chromium (headless)
+Browser: chromium (headless)
 
 Authenticating...
-✓ Login successful
+  Login successful
 
 Running tests:
-✓ REQ-001: User Login (2.3s)
-✓ REQ-002: Dashboard Load (1.8s)
-✓ REQ-003: User Profile (1.5s)
+  ✓ REQ-001: passed (2.3s)
+  ✓ REQ-002: passed (1.8s)
+  ✓ REQ-003: passed (1.5s)
 
 Summary:
-========
+========================================
 Total:      3
 Passed:     3 (100%)
+Failed:     0
+Clarify:    0
+Errors:     0
 Duration:   5.6s
 
 Reports generated:
-  JUnit XML: test-results/2026-02-20_14-30-45/junit.xml
-  JSON:      test-results/2026-02-20_14-30-45/report.json
-  HTML:      test-results/2026-02-20_14-30-45/report.html
+  json: test-results/2026-02-20_14-30-45/report.json
+  junit_xml: test-results/2026-02-20_14-30-45/junit.xml
+  html: test-results/2026-02-20_14-30-45/report.html
 
-Exit code: 0 (all tests passed)
+Exit code: 0
 ```
 
 ## Usage Patterns
@@ -317,6 +320,8 @@ Visual report with:
 
 ## CI/CD Integration
 
+For comprehensive CI/CD examples with complete configurations, see the [CI/CD Integration Guide](../../docs/ci-cd-integration.md).
+
 ### GitHub Actions
 
 `.github/workflows/qa-tests.yml`:
@@ -334,10 +339,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -346,29 +351,27 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv add playwright-qa-agent
-          playwright install --with-deps
+          uv sync
+          uv run playwright install --with-deps chromium
 
       - name: Run QA Agent
         env:
-          QA_AGENT_URL: https://staging.example.com
-          QA_AGENT_USERNAME: ${{ secrets.TEST_USERNAME }}
           QA_AGENT_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
-          playwright-qa-agent \
-            --headless \
-            --format junit,json \
-            --output test-results \
-            requirements.md
+          uv run playwright-qa-agent requirements.md \
+            --url ${{ vars.APP_URL }} \
+            --username ${{ vars.QA_USERNAME }} \
+            --format all \
+            --output test-results
 
       - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: mikepenz/action-junit-report@v4
         if: always()
         with:
-          files: test-results/**/junit.xml
+          report_paths: test-results/**/junit.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
@@ -388,13 +391,12 @@ qa-tests:
     - uv add playwright-qa-agent
     - playwright install --with-deps
   script:
-    - playwright-qa-agent
-        --url $QA_APP_URL
-        --username $QA_USERNAME
-        --password $QA_PASSWORD
-        --headless
-        --output test-results
-        requirements.md
+    - |
+        uv run playwright-qa-agent requirements.md \
+          --url "$QA_APP_URL" \
+          --username "$QA_USERNAME" \
+          --format all \
+          --output test-results
   artifacts:
     when: always
     reports:
