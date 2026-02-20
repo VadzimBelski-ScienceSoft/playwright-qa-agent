@@ -1,0 +1,31 @@
+[project]
+name = "playwright-qa-agent"
+version = "0.1.0"
+description = "Playwright QA Agent - automated QA testing with Claude AI"
+requires-python = ">=3.11"
+dependencies = [
+    "claude-agent-sdk>=0.1.39",
+    "playwright>=1.58.0",
+    "mistune>=3.0",
+    "junit-xml>=1.9",
+]
+
+[project.scripts]
+playwright-qa-agent = "src.cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
