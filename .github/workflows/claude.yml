@@ -42,10 +42,15 @@ jobs:
             actions: read
 
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          prompt: |
+            You are Claude working in this repository.
+            If triggered by a label, implement the requested change and open/modify a PR.
+            If triggered by a comment, follow the comment’s instructions.
+            Keep changes minimal, add tests when appropriate, and explain what you did.
+            
 
           # Optional: Add claude_args to customize behavior and configuration
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          claude_args: '--allowed-tools Bash(gh pr:*)'
 
