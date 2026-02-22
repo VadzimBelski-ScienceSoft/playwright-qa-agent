@@ -51,6 +51,7 @@ jobs:
 
       - name: Run QA verification
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_PASSWORD: ${{ secrets.QA_PASSWORD }}
         run: |
           uv run playwright-qa-agent requirements.md \
@@ -86,6 +87,7 @@ jobs:
 
       - name: Run QA verification (with cached auth)
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_PASSWORD: ${{ secrets.QA_PASSWORD }}
         run: |
           uv run playwright-qa-agent requirements.md \
@@ -118,6 +120,7 @@ jobs:
 
       - name: Run QA verification (${{ matrix.browser }})
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_PASSWORD: ${{ secrets.QA_PASSWORD }}
         run: |
           uv run playwright-qa-agent requirements.md \
@@ -148,6 +151,7 @@ stages:
 variables:
   QA_AGENT_BROWSER: chromium
   QA_AGENT_LOG_LEVEL: info
+  # ANTHROPIC_API_KEY: Set as a masked CI/CD variable in Settings → CI/CD → Variables
 
 qa-verify:
   stage: qa-verification
@@ -185,6 +189,7 @@ Store `QA_AGENT_PASSWORD` in **Settings → CI/CD → Variables** as a masked va
 qa-verify:
   script:
     - |
+      ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
       QA_AGENT_PASSWORD="$QA_AGENT_PASSWORD" \
       uv run playwright-qa-agent requirements.md \
         --url "$APP_URL" \
@@ -206,6 +211,7 @@ pipeline {
     }
 
     environment {
+        ANTHROPIC_API_KEY   = credentials('anthropic-api-key')
         QA_AGENT_URL        = "${env.APP_URL}"
         QA_AGENT_USERNAME   = "${env.QA_USERNAME}"
         QA_AGENT_PASSWORD   = credentials('qa-password')
@@ -296,6 +302,7 @@ steps:
         --format all \
         --output $(Build.ArtifactStagingDirectory)/test-results
     env:
+      ANTHROPIC_API_KEY: $(anthropicApiKey)
       QA_AGENT_PASSWORD: $(qaPassword)
     displayName: "Run QA verification"
 
@@ -335,6 +342,7 @@ variables:
 
 | Variable | CLI Option | Description |
 |----------|------------|-------------|
+| `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key for Claude AI (required) |
 | `QA_AGENT_URL` | `--url` | Target web application URL |
 | `QA_AGENT_USERNAME` | `--username` | Login username |
 | `QA_AGENT_PASSWORD` | `--password` | Login password (always use env var) |
@@ -380,7 +388,8 @@ exit $EXIT_CODE
 
 ### Security Best Practices
 
-- **Never put passwords in pipeline YAML files** - use secret variables/credentials
+- **Never put passwords or API keys in pipeline YAML files** - use secret variables/credentials
+- Store `ANTHROPIC_API_KEY` as a secret in your CI/CD system, never commit it to the repository
 - Use `QA_AGENT_PASSWORD` environment variable instead of `--password` flag
 - Consider using `--auth-state` to cache login tokens and reduce credential exposure
 
