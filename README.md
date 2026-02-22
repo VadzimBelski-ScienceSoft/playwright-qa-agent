@@ -21,6 +21,7 @@ An AI-powered QA agent that verifies web application requirements using Playwrig
 
 - Python 3.11 or higher
 - [UV package manager](https://docs.astral.sh/uv/getting-started/installation/) (recommended) or pip
+- [Anthropic API key](https://console.anthropic.com/) (required for AI-powered verification)
 
 ### Step 1: Install the package
 
@@ -42,7 +43,15 @@ playwright install
 playwright install --with-deps
 ```
 
-### Step 3: Verify installation
+### Step 3: Configure API access
+
+```bash
+export ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+Get your API key from the [Anthropic Console](https://console.anthropic.com/).
+
+### Step 4: Verify installation
 
 ```bash
 playwright-qa-agent --version
@@ -123,6 +132,7 @@ Advanced:
 All CLI options can be set via environment variables with the `QA_AGENT_` prefix:
 
 ```bash
+export ANTHROPIC_API_KEY=sk-ant-xxxxx  # Required for Claude AI features
 export QA_AGENT_URL=https://app.example.com
 export QA_AGENT_USERNAME=testuser
 export QA_AGENT_PASSWORD=secretpass   # use env vars to avoid shell history

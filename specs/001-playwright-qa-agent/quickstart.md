@@ -11,6 +11,7 @@ The Playwright QA Agent is an AI-powered tool that automates web application tes
 
 - **Python**: 3.11 or higher
 - **UV Package Manager**: [Install UV](https://docs.astral.sh/uv/getting-started/installation/)
+- **Anthropic API key**: [Anthropic Console](https://console.anthropic.com/) (required for AI-powered verification)
 - **Operating System**: Linux, macOS, or Windows
 - **Network Access**: To target web applications
 
@@ -48,6 +49,20 @@ Expected output:
 ```
 Playwright QA Agent v1.0.0
 ```
+
+## API Key Setup
+
+The Playwright QA Agent uses Claude AI for intelligent test interpretation. You need an Anthropic API key to use it.
+
+1. Sign up at [Anthropic Console](https://console.anthropic.com/)
+2. Create an API key
+3. Set the environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=your_api_key_here
+```
+
+> **Important**: Store your API key securely. Never commit it to version control.
 
 ## Quick Start (5 Minutes)
 
