@@ -82,6 +82,17 @@ class TestWebApplication:
         assert app.url == "https://app.com"
         assert app.username == "user"
 
+    def test_create_no_args(self) -> None:
+        app = WebApplication()
+        assert app.url is None
+        assert app.username is None
+        assert app.password is None
+
+    def test_create_url_only(self) -> None:
+        app = WebApplication(url="https://app.com")
+        assert app.url == "https://app.com"
+        assert app.username is None
+
     def test_get_login_url_default(self) -> None:
         app = WebApplication(url="https://app.com", username="u", password="p")
         assert app.get_login_url() == "https://app.com/login"
@@ -95,29 +106,37 @@ class TestWebApplication:
         )
         assert app.get_login_url() == "https://app.com/auth"
 
+    def test_get_login_url_no_url(self) -> None:
+        app = WebApplication()
+        assert app.get_login_url() is None
+
     def test_validate_valid(self) -> None:
         app = WebApplication(url="https://app.com", username="u", password="p")
         assert app.validate() == []
 
-    def test_validate_empty_url(self) -> None:
+    def test_validate_empty_url_is_valid(self) -> None:
+        # Empty URL is treated as "not provided" - no error
         app = WebApplication(url="", username="u", password="p")
-        errors = app.validate()
-        assert any("url" in e for e in errors)
+        assert app.validate() == []
+
+    def test_validate_none_url_is_valid(self) -> None:
+        app = WebApplication()
+        assert app.validate() == []
 
     def test_validate_invalid_url_scheme(self) -> None:
         app = WebApplication(url="ftp://app.com", username="u", password="p")
         errors = app.validate()
         assert any("url" in e for e in errors)
 
-    def test_validate_empty_username(self) -> None:
+    def test_validate_empty_username_is_valid(self) -> None:
+        # username is optional - no error for empty/None
         app = WebApplication(url="https://app.com", username="", password="p")
-        errors = app.validate()
-        assert any("username" in e for e in errors)
+        assert app.validate() == []
 
-    def test_validate_empty_password(self) -> None:
+    def test_validate_empty_password_is_valid(self) -> None:
+        # password is optional - no error for empty/None
         app = WebApplication(url="https://app.com", username="u", password="")
-        errors = app.validate()
-        assert any("password" in e for e in errors)
+        assert app.validate() == []
 
 
 class TestTestReport:

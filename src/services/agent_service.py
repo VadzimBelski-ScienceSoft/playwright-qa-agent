@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,9 @@ _AMBIGUOUS_PATTERNS = [
     "interact", "work with", "deal with", "maintain", "control",
     "some", "various", "appropriate", "relevant", "suitable",
 ]
+
+# Regex to extract explicit URLs from requirement text
+_URL_PATTERN = re.compile(r'https?://[^\s]+')
 
 
 def _get_environment() -> dict:
@@ -66,7 +70,77 @@ def _make_step(
     )
 
 
-def _interpret_requirement_with_claude(requirement: Requirement, app_url: str) -> dict:
+def _extract_url_from_requirement(
+    requirement: Requirement,
+    default_url: Optional[str],
+) -> Optional[str]:
+    """Extract URL from requirement text or use default.
+
+    Priority:
+    1. Explicit https?:// URL in requirement text
+    2. Default URL from CLI --url flag
+    3. None (will need clarification if URL is required)
+    """
+    text = " ".join([
+        requirement.description or "",
+        requirement.given or "",
+        requirement.when or "",
+        requirement.then or "",
+    ])
+
+    match = _URL_PATTERN.search(text)
+    if match:
+        url = match.group(0).rstrip(".,;)")
+        logger.debug("Extracted URL from requirement %s: %s", requirement.id, url)
+        return url
+
+    if default_url:
+        logger.debug("Using default URL for %s: %s", requirement.id, default_url)
+        return default_url
+
+    logger.debug("No URL found for %s", requirement.id)
+    return None
+
+
+def _requirement_needs_url(requirement: Requirement) -> bool:
+    """Determine if requirement explicitly needs a URL to execute."""
+    text = " ".join([
+        requirement.description or "",
+        requirement.given or "",
+        requirement.when or "",
+        requirement.then or "",
+        requirement.title or "",
+    ]).lower()
+
+    url_keywords = [
+        "navigate", "visit", "go to", "open", "load", "access",
+        "browse", "url", "page", "website", "web app",
+    ]
+
+    return any(kw in text for kw in url_keywords)
+
+
+def _requires_authentication(requirement: Requirement) -> bool:
+    """Determine if requirement needs login/authentication."""
+    text = " ".join([
+        requirement.description or "",
+        requirement.given or "",
+        requirement.when or "",
+        requirement.then or "",
+        requirement.title or "",
+    ]).lower()
+
+    auth_keywords = [
+        "login", "log in", "log-in", "logs in",
+        "sign in", "sign-in", "signin",
+        "authenticate", "authentication",
+        "credentials", "username", "password",
+    ]
+
+    return any(kw in text for kw in auth_keywords)
+
+
+def _interpret_requirement_with_claude(requirement: Requirement, app_url: Optional[str]) -> dict:
     """Use Claude SDK to interpret a requirement and generate verification steps.
 
     Returns a dict with:
@@ -86,7 +160,7 @@ def _interpret_requirement_with_claude(requirement: Requirement, app_url: str) -
             f"Given: {requirement.given}\n"
             f"When: {requirement.when}\n"
             f"Then: {requirement.then}\n"
-            f"Application URL: {app_url}\n\n"
+            f"Application URL: {app_url or 'not specified'}\n\n"
             "Return a JSON object with:\n"
             "- steps: array of verification steps, each with {action, target, selector, value}\n"
             "  Valid actions: navigate, fill, click, wait, verify, screenshot\n"
@@ -106,7 +180,6 @@ def _interpret_requirement_with_claude(requirement: Requirement, app_url: str) -
                         result_text += block.text
 
         import json
-        import re
         # Extract JSON from response
         json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
         if json_match:
@@ -121,14 +194,19 @@ def _interpret_requirement_with_claude(requirement: Requirement, app_url: str) -
     return _rule_based_interpretation(requirement, app_url)
 
 
-def _rule_based_interpretation(requirement: Requirement, app_url: str) -> dict:
+def _rule_based_interpretation(requirement: Requirement, app_url: Optional[str]) -> dict:
     """Rule-based requirement interpretation fallback (no Claude SDK required)."""
     steps = []
     description = (requirement.description or requirement.title or "").lower()
 
-    # Always navigate to the app first
-    steps.append({"action": "navigate", "target": "application", "selector": "", "value": app_url})
-    steps.append({"action": "screenshot", "target": "initial_state", "selector": "", "value": ""})
+    # Navigate to the app if URL is available
+    if app_url:
+        steps.append({
+            "action": "navigate", "target": "application", "selector": "", "value": app_url,
+        })
+        steps.append({
+            "action": "screenshot", "target": "initial_state", "selector": "", "value": "",
+        })
 
     # Infer verification steps from description keywords
     if any(kw in description for kw in ["login", "sign in", "authenticate", "credentials"]):
@@ -147,7 +225,8 @@ def _rule_based_interpretation(requirement: Requirement, app_url: str) -> dict:
         steps.append({"action": "verify", "target": "form elements",
                       "selector": "input, textarea, select", "value": ""})
 
-    if not steps[1:]:  # Only the navigate step
+    navigate_and_screenshot = 2 if app_url else 0
+    if len(steps) == navigate_and_screenshot:  # Only navigate/screenshot steps (or none)
         steps.append({"action": "verify", "target": "page loaded",
                       "selector": "body", "value": ""})
 
@@ -292,6 +371,7 @@ class AgentService:
         self.app_config = app_config
         self.timeout = timeout
         self.screenshot_on = screenshot_on
+        self._browser_service: Optional[BrowserService] = None
 
     def create_session(
         self,
@@ -364,6 +444,7 @@ class AgentService:
         Returns:
             List of VerificationResult, one per requirement.
         """
+        self._browser_service = browser_service
         results: List[VerificationResult] = []
         total = len(self.requirements_doc.requirements)
 
@@ -415,8 +496,82 @@ class AgentService:
             logger.debug("%s %s: %s", requirement.id, requirement.title, msg)
 
         try:
-            # Get verification plan from Claude (or fallback)
-            plan = _interpret_requirement_with_claude(requirement, self.app_config.url)
+            # 1. Extract URL (explicit in requirement or default from CLI)
+            url = _extract_url_from_requirement(requirement, self.app_config.url)
+
+            # 2. Check if URL is needed but missing
+            if url is None and _requirement_needs_url(requirement):
+                duration = (datetime.now(timezone.utc) - start).total_seconds()
+                return VerificationResult(
+                    requirement_id=requirement.id,
+                    status="needs_clarification",
+                    duration=duration,
+                    steps=steps,
+                    screenshots=screenshots,
+                    logs=logs,
+                    clarification_reason=(
+                        "No URL specified in requirement text or --url flag. "
+                        "Either add an explicit URL (e.g., 'navigate to https://example.com') "
+                        "or provide --url flag."
+                    ),
+                    refinement_suggestion=(
+                        f"Add explicit URL to requirement {requirement.id}. "
+                        "Example: 'Given user navigates to https://example.com'"
+                    ),
+                )
+
+            log(f"Using URL: {url or 'N/A'}")
+
+            # 3. Check if authentication is required
+            if _requires_authentication(requirement):
+                if not self.app_config.username or not self.app_config.password:
+                    duration = (datetime.now(timezone.utc) - start).total_seconds()
+                    return VerificationResult(
+                        requirement_id=requirement.id,
+                        status="needs_clarification",
+                        duration=duration,
+                        steps=steps,
+                        screenshots=screenshots,
+                        logs=logs,
+                        clarification_reason=(
+                            "Requirement requires authentication but no credentials provided. "
+                            "Please provide --username and --password flags."
+                        ),
+                        refinement_suggestion=(
+                            "Set QA_AGENT_USERNAME and QA_AGENT_PASSWORD environment variables "
+                            "or use --username and --password flags."
+                        ),
+                    )
+
+                # Perform on-demand authentication
+                log("Authenticating...")
+                auth_config = WebApplication(
+                    url=url or self.app_config.url,
+                    username=self.app_config.username,
+                    password=self.app_config.password,
+                    login_url=self.app_config.login_url,
+                    login_selectors=self.app_config.login_selectors,
+                )
+                if self._browser_service is not None:
+                    authenticated = self._browser_service.authenticate(page, auth_config)
+                    if not authenticated:
+                        duration = (datetime.now(timezone.utc) - start).total_seconds()
+                        return VerificationResult(
+                            requirement_id=requirement.id,
+                            status="error",
+                            duration=duration,
+                            steps=steps,
+                            screenshots=screenshots,
+                            logs=logs,
+                            error={
+                                "message": "Authentication failed. Check credentials.",
+                                "type": "AuthenticationError",
+                            },
+                        )
+                    log("Authentication successful")
+
+            # 4. Get verification plan from Claude (or fallback)
+            plan = _interpret_requirement_with_claude(requirement, url)
             planned_steps = plan.get("steps", [])
             is_ambiguous = plan.get("is_ambiguous", False)
             ambiguity_reasons = plan.get("ambiguity_reasons", [])
@@ -432,7 +587,7 @@ class AgentService:
                 value = step_data.get("value", "")
 
                 step = self._execute_step(
-                    action, target, selector, value, page, session, requirement.id
+                    action, target, selector, value, page, session, requirement.id, url
                 )
                 steps.append(step)
                 log(f"Step {action} '{target}': {'ok' if step.success else 'failed'}")
@@ -517,6 +672,7 @@ class AgentService:
         page,
         session: TestSession,
         req_id: str,
+        resolved_url: Optional[str] = None,
     ) -> TestStep:
         """Execute a single verification step.
 
@@ -528,6 +684,7 @@ class AgentService:
             page: Playwright page.
             session: Active session (for screenshot paths).
             req_id: Requirement ID (for naming screenshots).
+            resolved_url: Per-requirement resolved URL (used for relative navigation).
 
         Returns:
             TestStep with result.
@@ -538,9 +695,14 @@ class AgentService:
             timeout_ms = self.timeout * 1000
 
             if action == "navigate":
-                url = value if value.startswith("http") else (
-                    self.app_config.url.rstrip("/") + "/" + value.lstrip("/")
-                )
+                if value.startswith("http"):
+                    url = value
+                elif resolved_url:
+                    url = resolved_url.rstrip("/") + "/" + value.lstrip("/")
+                elif self.app_config.url:
+                    url = self.app_config.url.rstrip("/") + "/" + value.lstrip("/")
+                else:
+                    url = value  # best-effort fallback
                 page.goto(url, wait_until="networkidle", timeout=timeout_ms)
                 step = _make_step(action, target, True, value=url, selector=selector)
 
