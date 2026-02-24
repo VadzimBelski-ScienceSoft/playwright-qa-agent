@@ -10,9 +10,9 @@ from typing import List, Optional
 class WebApplication:
     """Configuration for the web application under test."""
 
-    url: str
-    username: str
-    password: str
+    url: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
     login_url: Optional[str] = field(default=None)
     login_selectors: dict = field(default_factory=lambda: {
         "username": "#username, input[name='username'], input[type='email']",
@@ -21,8 +21,10 @@ class WebApplication:
     })
     session_storage: Optional[str] = field(default=None)
 
-    def get_login_url(self) -> str:
+    def get_login_url(self) -> Optional[str]:
         """Return login URL, defaulting to base URL + /login."""
+        if not self.url:
+            return None
         if self.login_url:
             return self.login_url
         return self.url.rstrip("/") + "/login"
@@ -35,15 +37,11 @@ class WebApplication:
         """
         errors: List[str] = []
 
-        if not self.url:
-            errors.append("url must be non-empty")
-        elif not (self.url.startswith("http://") or self.url.startswith("https://")):
-            errors.append(f"url must start with http:// or https://, got: {self.url!r}")
+        # Only validate URL format if provided
+        if self.url:
+            if not (self.url.startswith("http://") or self.url.startswith("https://")):
+                errors.append(f"url must start with http:// or https://, got: {self.url!r}")
 
-        if not self.username:
-            errors.append("username must be non-empty")
-
-        if not self.password:
-            errors.append("password must be non-empty")
+        # username and password are optional - no validation required
 
         return errors

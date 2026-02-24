@@ -20,12 +20,12 @@ class TestSession:
     """Represents a single execution of the QA agent against a web application."""
 
     requirements_doc: RequirementsDocument
-    app_url: str
-    username: str
     browser_type: str
     headless: bool
     output_dir: Path
     environment: dict
+    app_url: Optional[str] = field(default=None)
+    username: Optional[str] = field(default=None)
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = field(default=None)
@@ -80,8 +80,8 @@ class TestSession:
             end_time=datetime.fromisoformat(data["end_time"]) if data.get("end_time") else None,
             duration=data.get("duration"),
             requirements_doc=RequirementsDocument.from_dict(data["requirements_doc"]),
-            app_url=data["app_url"],
-            username=data["username"],
+            app_url=data.get("app_url"),
+            username=data.get("username"),
             browser_type=data["browser_type"],
             headless=data["headless"],
             results=[VerificationResult.from_dict(r) for r in data.get("results", [])],
@@ -105,12 +105,6 @@ class TestSession:
             errors.append(
                 f"browser_type must be one of {VALID_BROWSER_TYPES}, got: {self.browser_type!r}"
             )
-
-        if not self.app_url:
-            errors.append("app_url must be non-empty")
-
-        if not self.username:
-            errors.append("username must be non-empty")
 
         if self.end_time is not None and self.end_time < self.start_time:
             errors.append("end_time must not be before start_time")

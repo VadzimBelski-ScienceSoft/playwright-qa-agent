@@ -55,12 +55,12 @@ def _make_result() -> VerificationResult:
 def _make_session(tmp_path: Path, **kwargs) -> TestSession:
     defaults = {
         "requirements_doc": _make_req_doc(tmp_path),
-        "app_url": "https://app.example.com",
-        "username": "testuser",
         "browser_type": "chromium",
         "headless": True,
         "output_dir": tmp_path / "output",
         "environment": {"python_version": "3.11.0", "platform": "Linux"},
+        "app_url": "https://app.example.com",
+        "username": "testuser",
     }
     defaults.update(kwargs)
     return TestSession(**defaults)
@@ -190,15 +190,26 @@ class TestTestSessionValidation:
         session = _make_session(tmp_path)
         assert session.validate() == []
 
-    def test_validate_empty_app_url(self, tmp_path: Path) -> None:
+    def test_validate_empty_app_url_is_valid(self, tmp_path: Path) -> None:
+        # app_url is optional - empty string or None is valid
         session = _make_session(tmp_path, app_url="")
-        errors = session.validate()
-        assert any("app_url" in e for e in errors)
+        assert session.validate() == []
 
-    def test_validate_empty_username(self, tmp_path: Path) -> None:
+    def test_validate_none_app_url_is_valid(self, tmp_path: Path) -> None:
+        session = _make_session(tmp_path, app_url=None)
+        assert session.validate() == []
+
+    def test_validate_empty_username_is_valid(self, tmp_path: Path) -> None:
+        # username is optional - empty string or None is valid
         session = _make_session(tmp_path, username="")
-        errors = session.validate()
-        assert any("username" in e for e in errors)
+        assert session.validate() == []
+
+    def test_create_without_url_and_username(self, tmp_path: Path) -> None:
+        # Session can be created without app_url and username
+        session = _make_session(tmp_path, app_url=None, username=None)
+        assert session.app_url is None
+        assert session.username is None
+        assert session.validate() == []
 
     def test_validate_negative_duration(self, tmp_path: Path) -> None:
         session = _make_session(tmp_path)

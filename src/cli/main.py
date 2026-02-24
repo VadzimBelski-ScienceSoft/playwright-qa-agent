@@ -32,9 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  playwright-qa-agent --url https://app.example.com --username user --password pass requirements.md
+  playwright-qa-agent requirements.md
+  playwright-qa-agent --url https://app.example.com requirements.md
+  playwright-qa-agent --url https://app.com --username user --password pass requirements.md
   playwright-qa-agent --url https://staging.app.com --headed --log-level debug requirements.txt
   playwright-qa-agent --url https://app.com --format junit,json --output ./reports requirements.md
+
+Only the requirements file is mandatory. URL and credentials are optional:
+  - URLs can be specified in requirements as explicit URLs or resolved by the agent
+  - Login is only attempted when a requirement explicitly needs authentication
 
 Environment variables (QA_AGENT_ prefix):
   QA_AGENT_URL, QA_AGENT_USERNAME, QA_AGENT_PASSWORD,
@@ -59,18 +65,18 @@ Exit codes:
     auth = parser.add_argument_group("Authentication")
     auth.add_argument(
         "--url",
-        default=_env("URL"),
-        help="Web application URL to test (env: QA_AGENT_URL)",
+        default=_env("URL") or None,
+        help="Web application URL to test (optional, env: QA_AGENT_URL)",
     )
     auth.add_argument(
         "--username",
-        default=_env("USERNAME"),
-        help="Login username (env: QA_AGENT_USERNAME)",
+        default=_env("USERNAME") or None,
+        help="Login username (optional, env: QA_AGENT_USERNAME)",
     )
     auth.add_argument(
         "--password",
-        default=_env("PASSWORD"),
-        help="Login password (env: QA_AGENT_PASSWORD)",
+        default=_env("PASSWORD") or None,
+        help="Login password (optional, env: QA_AGENT_PASSWORD)",
     )
     auth.add_argument(
         "--auth-state",
@@ -185,31 +191,11 @@ def validate_args(args: argparse.Namespace) -> Optional[str]:
             "Please provide a .txt or .md file."
         )
 
-    # Validate URL
-    if not args.url:
-        return (
-            "--url is required (or set QA_AGENT_URL environment variable). "
-            "Example: --url https://app.example.com"
-        )
-
-    if not (args.url.startswith("http://") or args.url.startswith("https://")):
+    # Validate URL format only if provided
+    if args.url and not (args.url.startswith("http://") or args.url.startswith("https://")):
         return (
             f"--url must start with http:// or https://, got: '{args.url}'"
         )
-
-    # Validate credentials (required unless auth-state provided)
-    auth_state = getattr(args, "auth_state", "") or ""
-    if not auth_state:
-        if not args.username:
-            return (
-                "--username is required (or set QA_AGENT_USERNAME). "
-                "Example: --username testuser"
-            )
-        if not args.password:
-            return (
-                "--password is required (or set QA_AGENT_PASSWORD). "
-                "Note: use environment variable QA_AGENT_PASSWORD to avoid shell history."
-            )
 
     return None
 
@@ -266,16 +252,19 @@ def main() -> int:
     from src.lib.file_utils import ensure_dir
     ensure_dir(output_base)
 
-    # Set up web application config
+    # Set up web application config (all fields optional)
     from src.models.web_application import WebApplication
     app_config = WebApplication(
-        url=args.url,
-        username=args.username or "",
-        password=args.password or "",
+        url=args.url or None,
+        username=args.username or None,
+        password=args.password or None,
         session_storage=args.auth_state or None,
     )
 
-    print(f"Testing against: {args.url}")
+    if args.url:
+        print(f"Testing against: {args.url}")
+    else:
+        print("No base URL provided (URLs will be resolved per requirement)")
     print(f"Browser: {args.browser} ({'headless' if args.headless else 'headed'})")
     print()
 
@@ -308,40 +297,6 @@ def main() -> int:
     try:
         browser_svc.launch()
 
-        # Authenticate
-        print("Authenticating...")
-        context = browser_svc.new_context()
-
-        # Try to load saved auth state
-        auth_state_path = Path(args.auth_state) if args.auth_state else None
-        if auth_state_path and auth_state_path.exists():
-            state = browser_svc.load_auth_state(auth_state_path)
-            if state:
-                context.close()
-                context = browser_svc.new_context(storage_state=state)
-                print("  Loaded saved authentication state")
-        else:
-            page = context.new_page()
-            authenticated = browser_svc.authenticate(page, app_config)
-            if not authenticated:
-                print(
-                    "ERROR: Authentication failed. Check --username and --password.",
-                    file=sys.stderr,
-                )
-                session.fail()
-                browser_svc.close()
-                return EXIT_AUTH_FAILED
-
-            # Save auth state if requested
-            if auth_state_path:
-                browser_svc.save_auth_state(context, auth_state_path)
-
-            page.close()
-
-        context.close()
-
-        print("  Login successful")
-        print()
         print("Running tests:")
 
         # Verify requirements

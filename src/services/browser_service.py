@@ -93,7 +93,7 @@ class BrowserService:
         context = self._browser.new_context(**kwargs)
         return context
 
-    def authenticate(self, page, app_config: WebApplication) -> bool:
+    def authenticate(self, page, app_config: Optional[WebApplication]) -> bool:
         """Authenticate to the web application.
 
         Navigates to the login page, fills credentials, and submits the form.
@@ -102,10 +102,20 @@ class BrowserService:
         Args:
             page: Playwright Page instance.
             app_config: WebApplication configuration with credentials and selectors.
+                        Returns False immediately if config is missing or incomplete.
 
         Returns:
             True if authentication succeeded, False otherwise.
         """
+        if (
+            not app_config
+            or not app_config.url
+            or not app_config.username
+            or not app_config.password
+        ):
+            logger.warning("Authentication skipped: missing credentials or URL")
+            return False
+
         login_url = app_config.get_login_url()
         logger.info("Authenticating user '%s' at %s", app_config.username, login_url)
 
