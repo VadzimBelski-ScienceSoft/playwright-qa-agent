@@ -10,7 +10,6 @@ Tests the end-to-end pipeline without requiring a live web application:
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -183,7 +182,9 @@ def _make_sample_results() -> list:
             status="needs_clarification",
             duration=0.45,
             clarification_reason="Requirement is ambiguous: 'log out' could mean multiple actions",
-            refinement_suggestion="Specify which logout button: top-nav 'Logout' or user-menu 'Sign out'",
+            refinement_suggestion=(
+                "Specify which logout button: top-nav 'Logout' or user-menu 'Sign out'"
+            ),
         ),
     ]
 
@@ -372,11 +373,10 @@ class TestCLIArgumentParsing:
             "--username", "user",
             "--password", "pass",
         ])
-        # url defaults to empty string from env
+        # url is optional — agent infers it from requirement text
         args.url = ""
         error = validate_args(args)
-        assert error is not None
-        assert "url" in error.lower()
+        assert error is None
 
     def test_validate_args_invalid_url_scheme(self, txt_requirements_file: Path) -> None:
         from src.cli.main import build_parser, validate_args

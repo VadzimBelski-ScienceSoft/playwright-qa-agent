@@ -11,8 +11,8 @@ class WebApplication:
     """Configuration for the web application under test."""
 
     url: str
-    username: str
-    password: str
+    username: str = field(default="")
+    password: str = field(default="")
     login_url: Optional[str] = field(default=None)
     login_selectors: dict = field(default_factory=lambda: {
         "username": "#username, input[name='username'], input[type='email']",
@@ -35,15 +35,12 @@ class WebApplication:
         """
         errors: List[str] = []
 
-        if not self.url:
-            errors.append("url must be non-empty")
-        elif not (self.url.startswith("http://") or self.url.startswith("https://")):
+        if self.url and not (self.url.startswith("http://") or self.url.startswith("https://")):
             errors.append(f"url must start with http:// or https://, got: {self.url!r}")
 
-        if not self.username:
-            errors.append("username must be non-empty")
-
-        if not self.password:
-            errors.append("password must be non-empty")
+        if self.password and not self.username:
+            errors.append("username must not be empty when password is provided")
+        if self.username and not self.password:
+            errors.append("password must not be empty when username is provided")
 
         return errors

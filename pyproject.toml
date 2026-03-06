@@ -5,9 +5,13 @@ description = "Playwright QA Agent - automated QA testing with Claude AI"
 requires-python = ">=3.11"
 dependencies = [
     "claude-agent-sdk>=0.1.39",
+    "anthropic>=0.40.0",
     "playwright>=1.58.0",
     "mistune>=3.0",
     "junit-xml>=1.9",
+    "langsmith>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "playwright-stealth>=1.0.6",
 ]
 
 [project.scripts]
@@ -34,6 +38,12 @@ select = [
     "F",   # pyflakes (unused imports F401, undefined names F821, etc.)
     "I",   # isort (import sorting)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"src/services/report_service.py" = ["E501"]  # HTML template strings exceed line limit
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
